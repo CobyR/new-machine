@@ -133,6 +133,37 @@ if ($Global:NM.Failed.Count) {
     $Global:NM.Failed | ForEach-Object { Write-Host "      - $_" -ForegroundColor Red }
 }
 
+# --- run log ------------------------------------------------------------------
+# Deliberately here rather than as a step: it records every use of the repo,
+# including partial runs invoked with -Only or -Skip.
+# Built as [string[]]-typed variables first. Both a function return and a $()
+# subexpression unroll a one-element array to a scalar, which lands in the log
+# as "only":"05" instead of ["05"]; a typed variable coerces back to an array
+# regardless. @($null) is also a one-element array containing null, not an empty
+# one - hence assigning only when the parameter was actually supplied.
+[string[]]$logOnly  = @(); if ($Only)  { $logOnly  = $Only }
+[string[]]$logSkip  = @(); if ($Skip)  { $logSkip  = $Skip }
+[string[]]$logRepos = @(); if ($Repos) { $logRepos = $Repos }
+[string[]]$logTags  = @(); if ($config.packages.tags) { $logTags = $config.packages.tags }
+[string[]]$logSteps = @($steps | ForEach-Object { $_.BaseName })
+
+Write-NMRunLog `
+    -Invocation ([ordered]@{
+        dryRun       = [bool]$DryRun
+        only         = $logOnly
+        skip         = $logSkip
+        tags         = $logTags
+        projectsRoot = $(if ($ProjectsRoot) { $ProjectsRoot } else { $null })
+        repos        = $logRepos
+        steps        = $logSteps
+    }) `
+    -Result ([ordered]@{
+        durationSeconds = [int]$stopwatch.Elapsed.TotalSeconds
+        changed         = $Global:NM.Changed.Count
+        skipped         = $Global:NM.Skipped.Count
+        failed          = $Global:NM.Failed.Count
+    })
+
 Write-Host ''
 Write-NMInfo 'Open a new terminal so PATH and profile changes take effect.'
 Write-Host ''

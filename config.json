@@ -62,6 +62,31 @@
     "signCommitsByDefault": true
   },
 
+  "obsidian": {
+    "$comment": [
+      "vaultPath registers your vault so Obsidian opens it on first launch.",
+      "Obsidian Sync itself cannot be automated - it needs an interactive",
+      "account login and a remote-vault picker. Step 06 prints those steps.",
+      "Leave vaultPath null to skip the step entirely."
+    ],
+    "vaultPath": null,
+    "createIfMissing": false,
+    "openAfterSetup": false
+  },
+
+  "log": {
+    "$comment": [
+      "One JSON Lines record per run, appended to path. Dry runs are not",
+      "recorded. autoCommit commits only the log file; autoPush additionally",
+      "pushes it, which is what makes the history visible across machines."
+    ],
+    "enabled": true,
+    "path": "logs/runs.jsonl",
+    "recordChangedItems": true,
+    "autoCommit": false,
+    "autoPush": false
+  },
+
   "osTweaks": {
     "showFileExtensions": true,
     "showHiddenFiles": true,

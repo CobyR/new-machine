@@ -14,6 +14,11 @@
 # Shell scripts must be LF or they won't run once macOS/Linux land.
 *.sh        text eol=lf
 
+# The run log is append-only, one record per line. `merge=union` keeps both
+# sides when two machines are provisioned before either pushes, instead of
+# raising a conflict on the last line every time.
+logs/runs.jsonl text eol=lf merge=union
+
 # Everything else stays LF.
 *.md        text eol=lf
 *.json      text eol=lf
