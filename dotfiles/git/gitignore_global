@@ -1,0 +1,31 @@
+# Things that should never reach a repo, on any machine.
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+._*
+
+# Linux
+*~
+.directory
+
+# Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+
+# Env / secrets
+.env.local
+.env.*.local
+*.pem

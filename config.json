@@ -1,0 +1,76 @@
+{
+  "$comment": "The one file you edit. Everything else is machine-agnostic.",
+
+  "identity": {
+    "name": "Coby Randquist",
+    "email": "randquistcp@gmail.com",
+    "githubUser": "CobyR"
+  },
+
+  "packages": {
+    "$comment": "Which manifest tags to install. See manifest/packages.json.",
+    "tags": ["core", "cli", "dev", "apps"]
+  },
+
+  "dev": {
+    "$comment": [
+      "root: where repos live. Override per-run with -ProjectsRoot.",
+      "fallbackRoot is used when root's drive doesn't exist on this machine,",
+      "so a laptop without a D: drive still works with no config edit."
+    ],
+    "root": "D:/projects",
+    "fallbackRoot": "{HOME}/projects",
+    "subdirs": ["scratch", "forks"],
+    "cloneProtocol": "ssh",
+
+    "$comment2": [
+      "Repo sets, selected with -Repos. A set either lists `repos` explicitly",
+      "or names an `owner` with includeAll to resolve via `gh repo list` at",
+      "clone time. `path` puts a set in its own subdirectory under root;",
+      "null clones straight into root."
+    ],
+    "defaultRepoSets": ["Personal"],
+    "repoSets": {
+      "Personal": {
+        "path": "personal",
+        "repos": [
+          "CobyR/new-machine",
+          "CobyR/computers",
+          "CobyR/network"
+        ]
+      },
+      "SayWhatTech": {
+        "path": "saywhattech",
+        "owner": "SayWhatTech",
+        "includeAll": true,
+        "excludeArchived": true,
+        "exclude": [".github"]
+      }
+    }
+  },
+
+  "ssh": {
+    "keyType": "ed25519",
+    "keyName": "id_ed25519",
+    "comment": "randquistcp@gmail.com",
+    "uploadToGitHub": true
+  },
+
+  "signing": {
+    "$comment": "'ssh' reuses the SSH key for commit signing (simplest). 'gpg' generates a GPG key. 'none' skips.",
+    "method": "ssh",
+    "signCommitsByDefault": true
+  },
+
+  "osTweaks": {
+    "showFileExtensions": true,
+    "showHiddenFiles": true,
+    "explorerLaunchToThisPC": true,
+    "darkMode": true,
+    "hideTaskbarSearchBox": true,
+    "disableBingInStartSearch": true,
+    "enableLongPaths": true,
+    "enableDeveloperMode": true,
+    "restartExplorer": true
+  }
+}

@@ -1,0 +1,79 @@
+# Tracked, machine-agnostic git config.
+# Identity and anything machine-specific goes in ~/.gitconfig.local (generated
+# by step 02 from config.json, never committed).
+[include]
+	path = ~/.gitconfig.local
+
+[init]
+	defaultBranch = main
+
+[core]
+	autocrlf = input
+	longpaths = true
+	excludesfile = ~/.gitignore_global
+	editor = code --wait
+
+[pull]
+	rebase = true
+[fetch]
+	prune = true
+	prunetags = true
+[push]
+	default = current
+	autoSetupRemote = true
+
+[rebase]
+	autosquash = true
+	autostash = true
+
+[merge]
+	conflictstyle = zdiff3
+[diff]
+	algorithm = histogram
+	colorMoved = default
+
+[rerere]
+	enabled = true
+
+[branch]
+	sort = -committerdate
+[tag]
+	sort = -version:refname
+
+[color]
+	ui = auto
+
+# `delta` ships in the cli tag of manifest/packages.json.
+[core "pager"]
+[pager]
+	diff = delta
+	log = delta
+	reflog = delta
+	show = delta
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	line-numbers = true
+	side-by-side = false
+
+[alias]
+	s = status --short --branch
+	co = checkout
+	sw = switch
+	br = branch
+	cm = commit -m
+	amend = commit --amend --no-edit
+	unstage = restore --staged
+	last = log -1 HEAD --stat
+	lg = log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'
+	wip = "!git add -A && git commit -m 'wip' --no-verify --no-gpg-sign"
+	undo = reset --soft HEAD~1
+	# Branches sorted by recency
+	recent = "!git for-each-ref --sort=-committerdate --count=15 --format='%(color:green)%(committerdate:relative)%(color:reset) %(refname:short)' refs/heads/"
+
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
