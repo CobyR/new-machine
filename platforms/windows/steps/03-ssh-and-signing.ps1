@@ -167,15 +167,11 @@ switch ($config.signing.method) {
             'commit.gpgsign'             = $sign
             'tag.gpgsign'                = $sign
         }
+        # ~/.gitconfig.local, never --global: ~/.gitconfig is a symlink to the
+        # tracked dotfile, so --global would commit this machine's absolute
+        # paths into every other machine's config.
         foreach ($key in $gitSettings.Keys) {
-            $want    = $gitSettings[$key]
-            $current = (Invoke-NMNative -Command 'git' -Arguments @('config', '--global', '--get', $key)).Output.Trim()
-            if ($current -eq $want) { Write-NMSkip "git config $key"; continue }
-            $k = $key; $v = $want
-            Invoke-NMAction -Description "git config --global $k $v" -Action {
-                $r = Invoke-NMNative -Command 'git' -Arguments @('config', '--global', $k, $v)
-                if (-not $r.Success) { throw "git config exited $($r.ExitCode)" }
-            } | Out-Null
+            Set-NMGitLocal -Key $key -Value $gitSettings[$key]
         }
 
         # Register the signing key with GitHub so commits show "Verified".
@@ -206,13 +202,7 @@ switch ($config.signing.method) {
             'commit.gpgsign'  = $(if ($config.signing.signCommitsByDefault) { 'true' } else { 'false' })
         }
         foreach ($key in $gpgSettings.Keys) {
-            $want    = $gpgSettings[$key]
-            $current = (Invoke-NMNative -Command 'git' -Arguments @('config', '--global', '--get', $key)).Output.Trim()
-            if ($current -eq $want) { Write-NMSkip "git config $key"; continue }
-            $k = $key; $v = $want
-            Invoke-NMAction -Description "git config --global $k $v" -Action {
-                Invoke-NMNative -Command 'git' -Arguments @('config', '--global', $k, $v) | Out-Null
-            } | Out-Null
+            Set-NMGitLocal -Key $key -Value $gpgSettings[$key]
         }
         Write-NMInfo "add this key to GitHub:  gpg --armor --export $keyId | gh gpg-key add -"
     }

@@ -94,6 +94,25 @@ templating, chezmoi is the answer.
 
 ## Consequences
 
+- **A symlinked dotfile is a write target for every tool that owns that path.**
+  Link mode means "edits on the machine are edits to the repo" — and *any*
+  writer counts, not just you in an editor. `~/.gitconfig` is a symlink to the
+  tracked `dotfiles/git/gitconfig`, so `git config --global` in steps 03 and 04
+  wrote this machine's absolute paths (`C:\Users\<name>\.ssh\...`) straight into
+  the file every other machine would inherit — and left the repo dirty after
+  every run.
+
+  The rule that follows: **anything a step writes programmatically goes to
+  `~/.gitconfig.local`; the tracked file is only ever hand-edited.** Enforced by
+  `Set-NMGitLocal` (which uses `git config --file`) and by self-test assertions
+  that the tracked file carries no absolute user paths and that no step calls
+  `git config --global`.
+
+  Generalizes beyond git: before linking any file, ask what else writes to that
+  path. VS Code and Windows Terminal were spotted up front and given `copy`
+  mode; git's own tooling was not, because the writer is a step in this repo
+  rather than a third-party app.
+
 - **The first run on a fresh machine produces copies, not links,** unless step 04
   runs elevated first and then a *new shell* is opened. That ordering is
   non-obvious and has to be documented in the runbook, not discovered.
