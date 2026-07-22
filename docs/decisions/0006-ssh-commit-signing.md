@@ -86,9 +86,24 @@ suspicious.
 - **One key does two jobs.** Compromise means both authentication and signing.
   Accepted per the threat model above.
 - **`gh` needs extra scopes.** Registering keys requires `admin:public_key` and
-  `admin:ssh_signing_key`, which an existing token often lacks. The step detects
-  the 404 and prints the exact `gh auth refresh` command rather than failing
+  `admin:ssh_signing_key`, which an existing token often lacks. The step reports
+  the actual `gh` error and suggests `gh auth refresh` rather than failing
   opaquely — but it is a manual step, and it must be in the runbook.
+
+- **Reusing one key for both roles makes the "is it registered?" check subtle.**
+  GitHub stores authentication and signing keys separately, so the *same key
+  material* legitimately appears under both types. A presence check that matches
+  the key bytes without filtering by type reports the signing key as present the
+  moment the auth key is registered — and silently never uploads it. That bug
+  shipped, and the symptom was commits signed locally but Unverified on GitHub.
+
+  Compounding it: `gh ssh-key list` has **no** `--type` flag (only `gh ssh-key
+  add` does) and no `--json`. The flag was pattern-matched from `add` and never
+  verified, so the call failed outright — and the error handler blamed token
+  scopes, sending the user to a `gh auth refresh` that could never fix it. The
+  general lesson is to verify a CLI's actual surface per subcommand rather than
+  assuming flags carry across, and to report a tool's real error text instead of
+  guessing at a cause.
 - **`commit.gpgsign = true` is global.** Every commit on the machine is signed,
   including in repos where nobody cares. Harmless, but it means a broken agent
   breaks *all* commits, not just ones that need signing — including the run log's

@@ -111,21 +111,41 @@ if (-not (Test-NMCommand 'gh')) {
 function Add-NMGitHubKey {
     <#
     Uploads $pubPath to GitHub as an auth or signing key, if not already there.
-    A 404 from the list endpoint means the token lacks the scope - report the
-    fix rather than failing the step.
+
+    `gh ssh-key list` takes no --type flag (only `add` does) and has no --json,
+    so it returns every key as TSV with the type in the last column:
+
+        <title>  <algo> <key material>  <created>  <id>  authentication
+
+    Both filters matter. Dropping --type is what makes the call work at all;
+    filtering by the type column is what makes the answer correct, because SSH
+    signing reuses the authentication key - the same bytes appear under both
+    types, so an unfiltered match would report the signing key as present the
+    moment the auth key is registered, and never upload it.
     #>
     param(
         [ValidateSet('authentication', 'signing')][string]$KeyType,
         [string]$PublicKeyPath
     )
     $localKey = (Get-Content $PublicKeyPath -Raw).Split(' ')[1]
-    $listing  = Invoke-NMNative -Command 'gh' -Arguments @('ssh-key', 'list', '--type', $KeyType)
+    $listing  = Invoke-NMNative -Command 'gh' -Arguments @('ssh-key', 'list')
 
-    if (-not $listing.Success -or $listing.Output -match 'HTTP 404') {
-        Write-NMWarn "can't read your GitHub $KeyType keys - run: gh auth refresh -s admin:public_key,admin:ssh_signing_key"
+    if (-not $listing.Success) {
+        Write-NMWarn "can't read your GitHub SSH keys: $($listing.Output.Trim())"
+        Write-NMInfo  'if that is a permissions error: gh auth refresh -s admin:public_key,admin:ssh_signing_key'
         return
     }
-    if ($listing.Output -match [regex]::Escape($localKey)) {
+
+    $registered = @()
+    foreach ($line in ($listing.Output -split "`r?`n")) {
+        if (-not $line.Trim()) { continue }
+        $cols = $line -split "`t"
+        if ($cols.Count -lt 5) { continue }
+        if ($cols[-1].Trim() -ne $KeyType) { continue }
+        $registered += (($cols[1] -split ' ')[1])
+    }
+
+    if ($registered -contains $localKey) {
         Write-NMSkip "$KeyType key already on GitHub"
         return
     }
