@@ -521,6 +521,31 @@ function Get-NMRepoList {
     return @($explicit + $slugs | Select-Object -Unique)
 }
 
+function Test-NMRegistryValue {
+    <#
+    .SYNOPSIS
+    True when the registry value already equals $Value.
+
+    .DESCRIPTION
+    Separated from Set-NMRegistryValue so a caller can ask "does this still need
+    doing?" before asking "may I do it?". Step 04 needs that order: deciding a
+    tweak needs elevation before checking whether it is already applied sends
+    the user to an admin shell to redo finished work, and the warning never
+    clears no matter how many times they comply.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)]$Value
+    )
+    if (-not (Test-Path $Path)) { return $false }
+    $item = Get-ItemProperty -Path $Path -ErrorAction SilentlyContinue
+    # Under StrictMode, .$Name on a key that lacks the value is a hard error,
+    # so go through PSObject.Properties instead of dotting in.
+    if (-not $item -or -not $item.PSObject.Properties[$Name]) { return $false }
+    return ($item.$Name -eq $Value)
+}
+
 function Set-NMRegistryValue {
     <#
     .SYNOPSIS
@@ -535,14 +560,7 @@ function Set-NMRegistryValue {
     )
     $label = if ($Description) { $Description } else { "$Path\$Name = $Value" }
 
-    $current = $null
-    if (Test-Path $Path) {
-        $item = Get-ItemProperty -Path $Path -ErrorAction SilentlyContinue
-        # Under StrictMode, .$Name on a key that lacks the value is a hard error,
-        # so go through PSObject.Properties instead of dotting in.
-        if ($item -and $item.PSObject.Properties[$Name]) { $current = $item.$Name }
-    }
-    if ($null -ne $current -and $current -eq $Value) {
+    if (Test-NMRegistryValue -Path $Path -Name $Name -Value $Value) {
         Write-NMSkip "$label (already set)"
         return $false
     }
