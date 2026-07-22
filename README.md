@@ -107,6 +107,28 @@ D:\projects\
   forks\
 ```
 
+### Everything stays on SSH
+
+`dotfiles/git/gitconfig` rewrites HTTPS to SSH for the owners we clone from:
+
+```ini
+[url "git@github.com:CobyR/"]
+	insteadOf = https://github.com/CobyR/
+```
+
+HTTPS URLs arrive whether you want them or not — GitHub's Code button defaults to
+HTTPS, submodules embed whatever the author used, and `go get` /
+`pip install git+https://...` emit HTTPS. Without this, "everything is on SSH"
+decays and needs re-fixing by hand.
+
+Scoped to our own owners deliberately. A blanket rule on `https://github.com/`
+would also rewrite third-party public repos, which then need a loaded SSH key to
+clone — those would fail on a fresh machine before step 03, where plain HTTPS
+would have worked anonymously.
+
+`selftest.ps1` asserts every owner in `dev.repoSets` has a matching rule, so
+adding an org can't silently leave it on HTTPS.
+
 `defaultRepoSets` is what runs when you don't pass `-Repos`.
 
 ## What it does
