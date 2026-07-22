@@ -79,6 +79,38 @@ $changed3 = Set-NMRegistryValue -Path $key -Name 'Missing' -Value 7 -Description
 Check 'missing value on existing key does not throw' $changed3
 Remove-Item $key -Recurse -Force
 
+Write-Host "`n-- Test-NMRegistryValue --"
+$probeKey = 'HKCU:\Software\new-machine-selftest-probe'
+New-Item -Path $probeKey -Force | Out-Null
+Check 'false when value absent'    (-not (Test-NMRegistryValue -Path $probeKey -Name 'Nope' -Value 1))
+Check 'false when key absent'      (-not (Test-NMRegistryValue -Path 'HKCU:\Software\new-machine-nope' -Name 'X' -Value 1))
+New-ItemProperty -Path $probeKey -Name 'Set' -Value 1 -PropertyType DWord -Force | Out-Null
+Check 'true when value matches'    (Test-NMRegistryValue -Path $probeKey -Name 'Set' -Value 1)
+Check 'false when value differs'   (-not (Test-NMRegistryValue -Path $probeKey -Name 'Set' -Value 2))
+Remove-Item $probeKey -Recurse -Force
+
+Write-Host "`n-- Set-NMGitLocal merges, never overwrites --"
+# The bug this pins: step 02 rewrote ~/.gitconfig.local wholesale, wiping the
+# signing settings step 03 had written there.
+$fakeHome = Join-Path $sandbox 'githome'
+New-Item -ItemType Directory -Path $fakeHome -Force | Out-Null
+$realHome = $env:USERPROFILE
+try {
+    $env:USERPROFILE = $fakeHome
+    Set-NMGitLocal -Key 'user.name'       -Value 'Test User'
+    Set-NMGitLocal -Key 'user.signingkey' -Value 'C:\keys\id.pub'
+    Set-NMGitLocal -Key 'user.name'       -Value 'Test User'   # re-set the first
+
+    $f = Get-NMGitLocalPath
+    Check 'file created'            (Test-Path $f)
+    $body = Get-Content $f -Raw
+    Check 'first key survives'      ($body -match 'Test User')
+    Check 'second key present'      ($body -match 'signingkey')
+    Check 'no duplicate user.name'  (([regex]::Matches($body, '(?m)^\s*name\s*=')).Count -eq 1)
+} finally {
+    $env:USERPROFILE = $realHome
+}
+
 Write-Host "`n-- symlink vs copy fallback --"
 $src = Join-Path $sandbox 'source.txt'; Set-Content $src 'from repo'
 $dst = Join-Path $sandbox 'dest.txt'

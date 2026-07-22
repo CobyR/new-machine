@@ -53,6 +53,15 @@ $deferred = @()
 
 foreach ($tweak in $tweaks) {
     if (-not $tweak.Enabled) { Write-NMSkip "$($tweak.Desc) (disabled in config)"; continue }
+
+    # Is it already done? Ask before asking whether we're allowed to do it -
+    # otherwise an unelevated run reports applied admin tweaks as outstanding
+    # and tells you to re-run elevated forever.
+    if (Test-NMRegistryValue -Path $tweak.Path -Name $tweak.Name -Value $tweak.Value) {
+        Write-NMSkip "$($tweak.Desc) (already set)"
+        continue
+    }
+
     if ($tweak.Admin -and -not $isAdmin) { $deferred += $tweak.Desc; continue }
 
     if (Set-NMRegistryValue -Path $tweak.Path -Name $tweak.Name -Value $tweak.Value -Description $tweak.Desc) {

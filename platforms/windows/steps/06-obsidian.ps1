@@ -20,7 +20,10 @@ if (-not $config.PSObject.Properties['obsidian']) { return }
 if (-not $config.obsidian.remindAboutSync)        { return }
 
 # Only worth mentioning if Obsidian is actually on the machine.
+# The per-user Electron install lands in LOCALAPPDATA\Programs, not
+# LOCALAPPDATA directly - missing that is why this step silently never fired.
 $installed = @(
+    (Join-Path $env:LOCALAPPDATA 'Programs\Obsidian\Obsidian.exe')
     (Join-Path $env:LOCALAPPDATA 'Obsidian\Obsidian.exe')
     (Join-Path $env:ProgramFiles  'Obsidian\Obsidian.exe')
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
