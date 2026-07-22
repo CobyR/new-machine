@@ -44,6 +44,7 @@
     { "name": "Obsidian",           "tags": ["apps"], "winget": "Obsidian.Obsidian",                "brew": "obsidian",         "apt": null,            "check": null },
     { "name": "VLC",                "tags": ["apps"], "winget": "VideoLAN.VLC",                     "brew": "vlc",              "apt": "vlc",           "check": null },
     { "name": "TreeSize Professional", "tags": ["apps"], "winget": "JAMSoftware.TreeSize",          "brew": null,               "apt": null,            "check": null },
+    { "name": "John's Background Switcher", "tags": ["apps"], "winget": "johnsadventures.JohnsBackgroundSwitcher", "brew": null, "apt": null,   "check": null },
 
     { "name": "Slack",              "tags": ["optional"], "winget": "SlackTechnologies.Slack",      "brew": "slack",            "apt": null,            "check": null },
     { "name": "Discord",            "tags": ["optional"], "winget": "Discord.Discord",              "brew": "discord",          "apt": null,            "check": null },
