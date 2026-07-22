@@ -67,15 +67,8 @@ if ($deferred) {
 
 # --- git long-path support (pairs with the NTFS setting above) ----------------
 if ($t.enableLongPaths -and (Test-NMCommand 'git')) {
-    $current = (Invoke-NMNative -Command 'git' -Arguments @('config', '--global', '--get', 'core.longpaths')).Output.Trim()
-    if ($current -eq 'true') {
-        Write-NMSkip 'git core.longpaths'
-    } else {
-        Invoke-NMAction -Description 'git config --global core.longpaths true' -Action {
-            $r = Invoke-NMNative -Command 'git' -Arguments @('config', '--global', 'core.longpaths', 'true')
-            if (-not $r.Success) { throw "git config exited $($r.ExitCode)" }
-        } | Out-Null
-    }
+    # ~/.gitconfig.local, not --global - see Set-NMGitLocal.
+    Set-NMGitLocal -Key 'core.longpaths' -Value 'true'
 }
 
 # --- apply --------------------------------------------------------------------

@@ -225,6 +225,24 @@ foreach ($o in $owners) {
 }
 Check 'no blanket github.com rewrite' ($gitconfig -notmatch 'insteadOf = https://github\.com/\s*$')
 
+Write-Host "`n-- tracked gitconfig stays machine-agnostic --"
+# ~/.gitconfig is a symlink to this tracked file, so a stray `git config
+# --global` in a step writes one machine's absolute paths into every machine's
+# config. Steps must use Set-NMGitLocal (~/.gitconfig.local) instead.
+$trackedGitconfig = Get-Content (Join-Path $repo 'dotfiles\git\gitconfig') -Raw
+Check 'no Windows user paths'  ($trackedGitconfig -notmatch '(?i)[A-Z]:\\\\?Users\\')
+Check 'no unix home paths'     ($trackedGitconfig -notmatch '(?m)=\s*/(home|Users)/')
+Check 'no signingkey'          ($trackedGitconfig -notmatch '(?m)^\s*signingkey\s*=')
+Check 'no allowedSignersFile'  ($trackedGitconfig -notmatch '(?m)^\s*allowedSignersFile\s*=')
+Check 'includes gitconfig.local' ($trackedGitconfig -match 'gitconfig\.local')
+
+$stepFiles = Get-ChildItem (Join-Path $repo 'platforms\windows\steps') -Filter '*.ps1'
+$globalWrites = @($stepFiles | Where-Object {
+    (Get-Content $_.FullName -Raw) -match "'config',\s*'--global'"
+})
+Check 'no step calls git config --global' ($globalWrites.Count -eq 0)
+if ($globalWrites) { $globalWrites | ForEach-Object { Write-Host "        $($_.Name)" -ForegroundColor Red } }
+
 Write-Host "`n-- decision records --"
 # The index and the directory have to agree in both directions, or a new DR is
 # written and never discovered, or the index points at a file someone renamed.

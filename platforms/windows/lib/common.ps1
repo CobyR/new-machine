@@ -100,6 +100,44 @@ function Test-NMCommand {
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Get-NMGitLocalPath {
+    return (Join-Path $env:USERPROFILE '.gitconfig.local')
+}
+
+function Set-NMGitLocal {
+    <#
+    .SYNOPSIS
+    Writes a git setting to ~/.gitconfig.local, idempotently.
+
+    .DESCRIPTION
+    Never use `git config --global` from a step. Step 02 symlinks ~/.gitconfig
+    to the TRACKED dotfiles/git/gitconfig, so --global writes land inside the
+    repo - committing one machine's absolute paths (its username, drive, key
+    filename) into the file every other machine will use.
+
+    ~/.gitconfig.local is machine-local and untracked; the tracked gitconfig
+    pulls it in with [include]. The rule: anything a step writes goes here, and
+    the tracked file is only ever hand-edited.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value
+    )
+
+    $path = Get-NMGitLocalPath
+    $current = (Invoke-NMNative -Command 'git' -Arguments @('config', '--file', $path, '--get', $Key)).Output.Trim()
+    if ($current -eq $Value) {
+        Write-NMSkip "git config $Key"
+        return
+    }
+
+    $k = $Key; $v = $Value; $p = $path
+    Invoke-NMAction -Description "git config (local) $k $v" -Action {
+        $r = Invoke-NMNative -Command 'git' -Arguments @('config', '--file', $p, $k, $v)
+        if (-not $r.Success) { throw "git config --file exited $($r.ExitCode): $($r.Output.Trim())" }
+    } | Out-Null
+}
+
 function Invoke-NMNative {
     <#
     .SYNOPSIS
