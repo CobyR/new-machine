@@ -103,6 +103,32 @@ bodies that `-DryRun` had walked straight past.
 
 ## Consequences
 
+- **The shell that runs the tests is not the shell that runs the tool.** This
+  produced two false passes, both discovered only when a human typed the command
+  themselves:
+
+  - **Execution policy.** Automated sessions launch PowerShell with
+    `-ExecutionPolicy Bypass`; a real interactive shell falls through to Windows
+    PowerShell's `Restricted` default. The first command in the runbook failed
+    with *"running scripts is disabled on this system"* after passing every
+    check here.
+  - **Elevation.** The automated session happened to be running elevated, so
+    `New-Item -ItemType SymbolicLink` succeeded and the self-test reported
+    `PASS symlink created` — on a machine where Developer Mode was **off** and a
+    normal shell would have taken the copy fallback. The test asserted the
+    happy path while the real path was the fallback.
+
+  Neither is a bug in the suite; both are outside what it can observe. The
+  general lesson is that **the invocation path and the ambient security context
+  are untested by construction**. Anything between "user types a command" and
+  "our code starts executing" — execution policy, `PATH`, elevation, file
+  associations, Zone.Identifier blocking, profile load failures — is invisible
+  here, and a permissive harness makes the tool look more capable than it is.
+
+  Practical mitigation short of a VM: assert the *context*, not just the
+  behaviour. A test that records whether it ran elevated makes a
+  privilege-dependent pass self-identifying instead of silently reassuring.
+
 - **No coverage of cross-step interaction on a fresh machine.** Accepted, and the
   reason the runbook prescribes `-DryRun` first and two passes.
 - **The self-test asserts against synthetic state**, so it proves the logic, not

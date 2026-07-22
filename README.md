@@ -9,7 +9,26 @@ Why it's built this way: [docs/decisions](docs/decisions/).
 
 ## First run on a fresh machine
 
-### 0. Get the repo
+### 0. Allow scripts to run
+
+Windows PowerShell defaults to `Restricted`, so *nothing* here runs until you
+change it. Without this you get:
+
+```
+.\bootstrap.ps1 : File ... cannot be loaded because running scripts is disabled
+on this system.
+```
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+```
+
+`CurrentUser` needs no admin and persists. `RemoteSigned` is enough — `git clone`
+doesn't tag files with a Zone.Identifier stream, so these scripts count as local
+and don't need to be signed. Check what you've got with
+`Get-ExecutionPolicy -List`.
+
+### 1. Get the repo
 
 ```powershell
 winget install --id Git.Git --exact --silent --accept-package-agreements --accept-source-agreements
@@ -20,7 +39,7 @@ cd D:\projects\new-machine
 
 HTTPS for this one clone — SSH isn't set up yet. Everything after this is SSH.
 
-### 1. Elevated pass — do this first
+### 2. Elevated pass — do this first
 
 ```powershell
 # in an ADMIN terminal, from the repo
@@ -33,12 +52,12 @@ The only part needing admin: ssh-agent set to auto-start, NTFS long paths, and
 Developer Mode must be on **before** dotfiles are linked, or they land as copies
 and you redo them.
 
-### 2. Open a new, non-admin terminal
+### 3. Open a new, non-admin terminal
 
 Not optional. Symlink privilege is stamped into a process's token when it starts,
 so the shell that runs step 02 has to be launched *after* Developer Mode is on.
 
-### 3. Full pass
+### 4. Full pass
 
 ```powershell
 cd D:\projects\new-machine
@@ -48,7 +67,7 @@ cd D:\projects\new-machine
 Installs the packages, links the dotfiles, sets up SSH and signing. Docker
 Desktop is the slow one and may want a reboot for WSL2.
 
-### 4. New terminal, run it again
+### 5. New terminal, run it again
 
 ```powershell
 .\bootstrap.ps1 -Repos none
@@ -58,7 +77,7 @@ The first pass installs VS Code and friends; they only reach `PATH` in a new
 shell. This pass picks up whatever reported *"not on PATH yet"* — VS Code
 extensions in particular. It's fast and mostly reports skips.
 
-### 5. Clone the repos
+### 6. Clone the repos
 
 `-Repos none` above is deliberate: the `Personal` set contains **this repo**, so a
 normal run would clone a second copy to `D:\projects\personal\new-machine` while
