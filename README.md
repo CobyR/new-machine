@@ -1,79 +1,204 @@
 # new-machine
 
-Turns a fresh Windows install into my working machine. Idempotent — running it
-on an already-configured machine changes nothing and reports all skips.
+Turns a fresh Windows install into my working machine. Idempotent — running it on
+an already-configured machine changes nothing and reports all skips.
 
-## Use it
+Why it's built this way: [docs/decisions](docs/decisions/).
 
-On a brand-new machine, in PowerShell:
+---
+
+## First run on a fresh machine
+
+### 0. Get the repo
 
 ```powershell
 winget install --id Git.Git --exact --silent --accept-package-agreements --accept-source-agreements
-git clone https://github.com/CobyR/new-machine "$env:USERPROFILE\projects\new-machine"
-cd "$env:USERPROFILE\projects\new-machine"
-
-.\bootstrap.ps1 -DryRun     # see what it would do
-.\bootstrap.ps1             # do it
+git clone https://github.com/CobyR/new-machine D:\projects\new-machine
+cd D:\projects\new-machine
+.\bootstrap.ps1 -DryRun          # read the plan before running it
 ```
 
-HTTPS for the first clone because SSH isn't set up yet — step 03 fixes that, and
-step 05 clones this repo again to its permanent home if it isn't already there.
+HTTPS for this one clone — SSH isn't set up yet. Everything after this is SSH.
 
-Run it **twice**: the first pass installs Git/VS Code/etc., but those only land on
-`PATH` for a *new* shell. Open a fresh terminal and re-run to pick up the pieces
-that were skipped with a "not on PATH yet" warning. The second pass is fast.
-
-Elevation: everything works unelevated except NTFS long paths, Developer Mode,
-and the ssh-agent service. Those are skipped with a note. To get them:
+### 1. Elevated pass — do this first
 
 ```powershell
-.\bootstrap.ps1 -Only os-tweaks     # in an admin terminal
-.\bootstrap.ps1 -Only dotfiles      # re-run: real symlinks now that Dev Mode is on
+# in an ADMIN terminal, from the repo
+.\bootstrap.ps1 -Only 03,04
 ```
 
-### Options
+The only part needing admin: ssh-agent set to auto-start, NTFS long paths, and
+**Developer Mode**. Explorer restarts at the end — expect a taskbar flicker.
+
+Developer Mode must be on **before** dotfiles are linked, or they land as copies
+and you redo them.
+
+### 2. Open a new, non-admin terminal
+
+Not optional. Symlink privilege is stamped into a process's token when it starts,
+so the shell that runs step 02 has to be launched *after* Developer Mode is on.
+
+### 3. Full pass
+
+```powershell
+cd D:\projects\new-machine
+.\bootstrap.ps1 -Repos none
+```
+
+Installs the packages, links the dotfiles, sets up SSH and signing. Docker
+Desktop is the slow one and may want a reboot for WSL2.
+
+### 4. New terminal, run it again
+
+```powershell
+.\bootstrap.ps1 -Repos none
+```
+
+The first pass installs VS Code and friends; they only reach `PATH` in a new
+shell. This pass picks up whatever reported *"not on PATH yet"* — VS Code
+extensions in particular. It's fast and mostly reports skips.
+
+### 5. Clone the repos
+
+`-Repos none` above is deliberate: the `Personal` set contains **this repo**, so a
+normal run would clone a second copy to `D:\projects\personal\new-machine` while
+you're working in `D:\projects\new-machine`. Move it first, then clone the rest:
+
+```powershell
+Move-Item D:\projects\new-machine D:\projects\personal\new-machine
+cd D:\projects\personal\new-machine
+.\bootstrap.ps1 -Only 05 -Repos Personal,SayWhatTech
+```
+
+Step 05 now sees this repo as already cloned and fetches the others.
+
+### If step 03 warns about GitHub scopes
+
+Registering the signing key needs scopes your token may not have. Run what it
+prints, then re-run the step:
+
+```powershell
+gh auth refresh -s admin:public_key,admin:ssh_signing_key
+.\bootstrap.ps1 -Only 03
+```
+
+### Expect commits
+
+Every run appends to `logs/runs.jsonl`, commits it, and pushes. A `git log` full
+of `Record setup run on <HOST>` is the machine record building itself, not a
+problem. See [Run log](#run-log).
+
+---
+
+## Options
 
 ```powershell
 .\bootstrap.ps1 -DryRun                  # no changes, just narrate
-.\bootstrap.ps1 -Only packages           # one step (matches on filename)
+.\bootstrap.ps1 -Only packages           # one step (substring match on filename)
 .\bootstrap.ps1 -Only 03,04              # or several, by number
 .\bootstrap.ps1 -Skip packages           # everything except
 .\bootstrap.ps1 -Tags core,cli           # override config.json's package tags
-.\bootstrap.ps1 -ProjectsRoot 'E:\code'  # where repos go (default D:\projects)
-.\bootstrap.ps1 -Repos SayWhatTech       # which repo sets to clone
+.\bootstrap.ps1 -ProjectsRoot 'E:\code'  # where repos go
+.\bootstrap.ps1 -Repos SayWhatTech       # which repo sets to clone (or: all, none)
 ```
 
-A work machine in one line:
-
-```powershell
-.\bootstrap.ps1 -Repos Personal,SayWhatTech
-```
-
-Steps are also runnable directly, with the same parameters:
+Steps run directly too, with the same parameters:
 
 ```powershell
 .\platforms\windows\steps\05-dev-dirs.ps1 -ProjectsRoot 'E:\code' -Repos all
 ```
 
-## Projects root
+Exit code is `0` when nothing failed, `1` otherwise. Output symbols: `+` changed,
+`=` unchanged, `~` would change (dry run), `!` warning, `x` failed.
 
-`config.json`'s `dev.root` is `D:/projects`, which is right for most of these
-machines. When it isn't:
+---
 
-- `-ProjectsRoot 'E:\code'` for a one-off run
-- `dev.fallbackRoot` (`{HOME}/projects`) kicks in automatically when `dev.root`
-  names a drive the machine doesn't have — so a laptop with no D: drive works
-  with no config edit and no `D:\projects` accidentally landing on C:
-- a `config.local.json` with `{"dev": {"root": "C:/src"}}` to make it permanent
-  on one machine
+## What each step does
 
-## Repo sets
+| Step | Does | Needs admin |
+|------|------|-------------|
+| `01-packages` | winget-installs everything in `manifest/packages.json` matching your tags, then VS Code extensions from `manifest/vscode-extensions.txt` | some installers |
+| `02-dotfiles` | Links (or copies) everything in `dotfiles/links.json`; writes git identity to `~/.gitconfig.local` | no (but wants Developer Mode) |
+| `03-ssh-and-signing` | ed25519 key, ssh-agent, `gh auth login`, uploads auth + signing keys, configures SSH commit signing | ssh-agent service only |
+| `04-os-tweaks` | Explorer/taskbar/theme settings, NTFS long paths, Developer Mode | long paths + Developer Mode |
+| `05-dev-dirs` | Creates the folder layout under the projects root, clones the selected repo sets | no |
+| `06-obsidian` | Prints the manual Obsidian Sync steps. Changes nothing | no |
 
-`-Repos` picks which groups to clone from `dev.repoSets`. `all` clones every
-set, `none` creates the directories and stops. An unrecognized name fails with
-the list of valid ones rather than silently cloning nothing.
+---
 
-Two ways to define a set:
+## Configuring it
+
+**`config.json` is the only file you edit.**
+
+| Key | What it controls |
+|-----|------------------|
+| `identity.name` / `.email` | Written to `~/.gitconfig.local` by step 02 |
+| `packages.tags` | Which manifest tags install. Default `core, cli, dev, apps`; `optional` is opt-in |
+| `dev.root` | Where repos live (`D:/projects`) |
+| `dev.fallbackRoot` | Used when `dev.root`'s drive doesn't exist on this machine |
+| `dev.subdirs` | Extra folders created under the root |
+| `dev.cloneProtocol` | `ssh` or `https` for `owner/name` shorthand |
+| `dev.defaultRepoSets` | What clones when you don't pass `-Repos` |
+| `dev.repoSets` | Named sets — see [Repo sets](#repo-sets) |
+| `ssh.*` | Key type, filename, comment, whether to upload to GitHub |
+| `signing.method` | `ssh`, `gpg`, or `none` |
+| `obsidian.remindAboutSync` | Whether step 06 prints its reminder |
+| `log.*` | Run log: `enabled`, `path`, `recordChangedItems`, `autoCommit`, `autoPush` |
+| `osTweaks.*` | One boolean per Windows setting |
+
+For settings you want on **this machine only**, drop a `config.local.json`
+alongside it — git-ignored, deep-merged over `config.json`:
+
+```json
+{ "packages": { "tags": ["core", "cli"] },
+  "dev":      { "root": "C:/src" },
+  "osTweaks": { "darkMode": false } }
+```
+
+### Adding a package
+
+Add a row to `manifest/packages.json`:
+
+```json
+{ "name": "Rust", "tags": ["dev"], "winget": "Rustlang.Rustup",
+  "brew": "rustup", "apt": null, "check": "rustup" }
+```
+
+`check` is a command name used as a fast "already installed?" probe. Verify the
+ID before committing it:
+
+```powershell
+winget show --id Rustlang.Rustup --exact
+```
+
+Every `winget` ID in the manifest has been verified this way. `brew` and `apt`
+have **not** — they're unverified placeholders for the macOS/Linux ports.
+
+### Adding a dotfile
+
+Put the file under `dotfiles/`, add an entry to `dotfiles/links.json`:
+
+```json
+{ "source": "dotfiles/foo/.foorc", "target": "{HOME}/.foorc", "mode": "link" }
+```
+
+- `mode: "link"` — symlink. Edits on the machine *are* edits to the repo. Use for
+  anything you hand-edit.
+- `mode: "copy"` — for files an app rewrites itself (Windows Terminal, VS Code).
+  Pull changes back with:
+
+```powershell
+.\platforms\windows\steps\02-dotfiles.ps1 -Export
+```
+
+Targets use tokens, not Windows environment syntax: `{HOME}`, `{DOCUMENTS}`,
+`{APPDATA}`, `{LOCALAPPDATA}`, `{REPO}`. Existing files are moved to
+`<file>.bak-<timestamp>` before being replaced.
+
+### Repo sets
+
+`-Repos` picks which groups to clone. `all` clones every set; `none` creates the
+directories and stops. An unknown name fails with the list of valid ones.
 
 ```json
 "Personal": {
@@ -89,125 +214,29 @@ Two ways to define a set:
 }
 ```
 
-- **Explicit** (`repos`) — a fixed list. Entries can be `owner/name` shorthand or
-  a full URL; shorthand becomes SSH, or HTTPS if you set `dev.cloneProtocol`.
-- **Dynamic** (`owner` + `includeAll`) — resolved through `gh repo list` at clone
-  time, so a new repo in the org gets cloned without editing this file. Filter
-  with `excludeArchived` and `exclude`. Both keys together means the explicit
-  list is added to the resolved one.
+- **Explicit** (`repos`) — fixed list. `owner/name` shorthand or a full URL.
+- **Dynamic** (`owner` + `includeAll`) — resolved via `gh repo list` at clone
+  time, so new org repos appear without editing config. Both keys together means
+  the explicit list is added to the resolved one.
 
-`path` puts a set in its own subdirectory under the root; `null` clones straight
-into it. So the layout is:
+`path` gives a set its own subdirectory under the root:
 
 ```
 D:\projects\
   personal\      CobyR repos
   saywhattech\   SayWhatTech org repos
-  scratch\       dev.subdirs
+  scratch\       from dev.subdirs
   forks\
 ```
 
-### Everything stays on SSH
+Adding a new owner? Add a matching `insteadOf` rule to `dotfiles/git/gitconfig`
+so it stays on SSH — `selftest.ps1` fails if you forget.
 
-`dotfiles/git/gitconfig` rewrites HTTPS to SSH for the owners we clone from:
-
-```ini
-[url "git@github.com:CobyR/"]
-	insteadOf = https://github.com/CobyR/
-```
-
-HTTPS URLs arrive whether you want them or not — GitHub's Code button defaults to
-HTTPS, submodules embed whatever the author used, and `go get` /
-`pip install git+https://...` emit HTTPS. Without this, "everything is on SSH"
-decays and needs re-fixing by hand.
-
-Scoped to our own owners deliberately. A blanket rule on `https://github.com/`
-would also rewrite third-party public repos, which then need a loaded SSH key to
-clone — those would fail on a fresh machine before step 03, where plain HTTPS
-would have worked anonymously.
-
-`selftest.ps1` asserts every owner in `dev.repoSets` has a matching rule, so
-adding an org can't silently leave it on HTTPS.
-
-`defaultRepoSets` is what runs when you don't pass `-Repos`.
-
-## What it does
-
-| Step | Does |
-|------|------|
-| `01-packages` | winget-installs everything in `manifest/packages.json` matching your tags, then VS Code extensions from `manifest/vscode-extensions.txt` |
-| `02-dotfiles` | Symlinks (or copies) everything in `dotfiles/links.json` into place; writes git identity to `~/.gitconfig.local` |
-| `03-ssh-and-signing` | Generates an ed25519 key, starts ssh-agent, `gh auth login`, uploads the key to GitHub, configures SSH commit signing |
-| `04-os-tweaks` | Explorer/taskbar/theme settings, NTFS long paths, Developer Mode |
-| `05-dev-dirs` | Creates the dev folder layout under the projects root and clones the selected repo sets |
-| `06-obsidian` | Prints the manual Obsidian Sync steps after install (touches no Obsidian config) |
-
-Every run is recorded — see [Run log](#run-log) below.
-
-## Configuring it
-
-**`config.json` is the only file you need to edit.** Identity, which package
-tags to install, dev folder layout, repos to clone, which OS tweaks to apply.
-
-For settings you want on *this* machine only, drop a `config.local.json` next to
-it — it's git-ignored and deep-merged over `config.json`:
-
-```json
-{ "packages": { "tags": ["core", "cli"] },
-  "osTweaks": { "darkMode": false } }
-```
-
-### Adding a package
-
-Add a row to `manifest/packages.json`:
-
-```json
-{ "name": "Rust", "tags": ["dev"], "winget": "Rustlang.Rustup",
-  "brew": "rustup", "apt": null, "check": "rustup" }
-```
-
-`check` is a command name used as a fast "already installed?" probe. `tags`
-decide whether it's in your set — `core`, `cli`, `dev`, `apps` install by
-default; `optional` only with `-Tags optional`.
-
-Verify an ID before committing it:
-
-```powershell
-winget show --id Rustlang.Rustup --exact
-```
-
-Every `winget` ID in the manifest has been verified this way. The `brew` and
-`apt` columns have **not** — they're placeholders to give the macOS/Linux ports a
-starting shape, and each needs checking (`brew info`, `apt-cache show`) before
-those bootstraps rely on it.
-
-### Adding a dotfile
-
-Put the file under `dotfiles/`, add an entry to `dotfiles/links.json`:
-
-```json
-{ "source": "dotfiles/foo/.foorc", "target": "{HOME}/.foorc", "mode": "link" }
-```
-
-`mode: "link"` symlinks, so edits on the machine *are* edits to the repo — the
-right choice for anything you hand-edit. `mode: "copy"` is for files an app
-rewrites itself (Windows Terminal, VS Code); to pull those changes back:
-
-```powershell
-.\platforms\windows\steps\02-dotfiles.ps1 -Export
-```
-
-Targets use tokens rather than Windows environment syntax — `{HOME}`,
-`{DOCUMENTS}`, `{APPDATA}`, `{LOCALAPPDATA}`, `{REPO}` — so `links.json` stays
-readable by a future bash bootstrap. `{DOCUMENTS}` asks Windows where Documents
-actually is, which matters when OneDrive has redirected it.
-
-Existing files are moved to `<file>.bak-<timestamp>` before being replaced.
-Nothing is destroyed.
+---
 
 ## Run log
 
-Every real run appends one JSON Lines record to `logs/runs.jsonl` — host, machine
+Every real run appends one JSON Lines record to `logs/runs.jsonl`: host, machine
 GUID, OS build, hardware, PowerShell version, repo commit, the flags you passed,
 duration, and what changed. Dry runs aren't recorded.
 
@@ -215,51 +244,44 @@ duration, and what changed. Dry runs aren't recorded.
 .\tools\Show-RunLog.ps1              # one line per run, newest first
 .\tools\Show-RunLog.ps1 -ByMachine   # one row per machine, first/last seen
 .\tools\Show-RunLog.ps1 -Detail      # full records incl. what changed
+.\tools\Show-RunLog.ps1 -HostName DESKTOP-X -Last 5
 ```
 
-JSONL rather than a JSON array so appending never rewrites earlier lines;
-`.gitattributes` marks the file `merge=union`, so two machines provisioned before
-either pushes merge without a conflict.
+`autoCommit` and `autoPush` are both on. The commit is scoped to the log file
+alone, so work in progress elsewhere is never swept in. A push rejected because
+another machine got there first is rebased and retried once. No network, or no
+push access, warns and moves on — the entry goes up with the next run.
 
-**`log.autoCommit` is on by default** — every run commits its own entry, so the
-history is never left sitting uncommitted on a machine you set up once and walked
-away from. The commit is scoped to the log file alone (`git commit --only -- logs/runs.jsonl`),
-so unrelated work in progress is never swept in.
-
-**`log.autoPush` is on too**, so each entry is published as it happens and the
-history is visible from every machine rather than sitting in local commits. If
-another machine pushed first, the push is rebased onto it and retried once —
-`merge=union` means the log itself never conflicts, so both machines' lines
-survive. On an unresolvable rebase it aborts cleanly, leaves the commit in place,
-and prints the manual fix.
-
-A run on a machine with no network, or no push access, warns and moves on — the
-entry is still committed locally and goes up with the next successful push.
+---
 
 ## Obsidian
 
-Installed by step 01; **its config is deliberately left alone**. Obsidian shows
-its normal vault chooser on first launch, which is what you want when the vault
-comes from Sync — sign in, connect Sync, and pull the vault down from the remote
-rather than pointing Obsidian at a local folder that may not exist yet.
+Installed by step 01; **its config is deliberately untouched**, so Obsidian shows
+its normal vault chooser on first launch. Sign in there, enable Sync, and pull
+your vault down from the remote.
 
-Sync can't be automated regardless: it needs an interactive account login and a
-remote-vault picker, with no CLI, config file, or API, and the credentials aren't
-something this repo should hold. Step 06 just prints the remaining manual steps
-after install. Set `obsidian.remindAboutSync` to `false` to silence it.
+Sync can't be automated — no CLI, no config file, no API. Step 06 prints the
+manual steps; `obsidian.remindAboutSync: false` silences it.
+
+---
 
 ## Testing changes
 
 ```powershell
-.\tests\selftest.ps1        # exercises the real code paths in a sandbox
-.\bootstrap.ps1 -DryRun     # end-to-end, no writes
+.\tests\selftest.ps1        # 68 assertions against a sandbox, no machine state touched
+.\bootstrap.ps1 -DryRun     # end-to-end narration, no writes
 ```
 
-`selftest.ps1` covers config loading, JSON validity across the repo, path-token
-expansion, the dry-run wrapper, native-command handling, registry idempotency,
-the symlink/copy fallback, projects-root resolution (including the missing-drive
-fallback), clone-URL normalization, repo-set validity, and manifest sanity (no
-duplicate IDs, every `links.json` source exists).
+Run both before committing. Scripts must be **pure ASCII** — check with:
+
+```powershell
+Get-ChildItem -Recurse -Include *.ps1 |
+  Where-Object { [System.IO.File]::ReadAllText($_.FullName) -match '[^\x00-\x7F]' }
+```
+
+Anything returned will fail to parse under Windows PowerShell 5.1.
+
+---
 
 ## Layout
 
@@ -267,33 +289,35 @@ duplicate IDs, every `links.json` source exists).
 config.json              the one file you edit
 bootstrap.ps1            Windows entry point
 manifest/
-  packages.json          platform-neutral package list (winget + brew + apt IDs)
+  packages.json          package list, winget + brew + apt IDs
   vscode-extensions.txt
-dotfiles/                the actual config files, plus links.json (what goes where)
+dotfiles/                the config files themselves, plus links.json
 platforms/
   windows/
     lib/common.ps1       logging, dry-run, path tokens, idempotent writes
-    steps/01..05
+    steps/01..06
   macos/README.md        what porting takes
   linux/README.md
+tools/Show-RunLog.ps1
 tests/selftest.ps1
+logs/runs.jsonl          appended by every run
+docs/decisions/          why it's built this way
 ```
 
-Anything platform-neutral (`config.json`, `manifest/`, `dotfiles/`) lives at the
-root; anything Windows-specific lives under `platforms/windows/`. Adding macOS
-means writing `bootstrap.sh` plus `platforms/macos/` — the manifest already
-carries a `brew` ID per package and `links.json` already has a `macos` array.
-See [platforms/macos/README.md](platforms/macos/README.md).
+Platform-neutral things (`config.json`, `manifest/`, `dotfiles/`) live at the
+root; Windows-specific code lives under `platforms/windows/`.
 
-## Notes for future me
+---
 
-- **Scripts must be ASCII.** Windows PowerShell 5.1 reads BOM-less `.ps1` as
-  Windows-1252, so a UTF-8 em-dash decodes as `â€"` — that `"` terminates the
-  string and the file fails to parse. A fresh machine has only 5.1, so the
-  bootstrap has to run there.
-- **Never redirect a native command's stderr directly.** In 5.1 that wraps each
-  line in an ErrorRecord, which under `$ErrorActionPreference='Stop'` turns a
-  tool that merely warns into a fatal error. Use `Invoke-NMNative` instead — it
-  judges success by exit code only.
-- The profile is linked to both PowerShell 7 and 5.1, so it must parse under
-  5.1: no `??`, no `?.`, no ternary.
+## Working on this repo
+
+Three rules that aren't obvious and will bite:
+
+1. **Scripts must be pure ASCII** — a UTF-8 em-dash breaks parsing under
+   PowerShell 5.1, which is all a fresh machine has.
+2. **Never redirect a native command's stderr** (`2>$null`, `2>&1`) — use
+   `Invoke-NMNative`.
+3. **The shared profile must parse under 5.1** — no `??`, no `?.`, no ternary.
+
+The reasoning for each, and for every other structural choice, is in
+[docs/decisions](docs/decisions/).

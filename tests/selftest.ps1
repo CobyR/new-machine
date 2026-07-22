@@ -225,6 +225,33 @@ foreach ($o in $owners) {
 }
 Check 'no blanket github.com rewrite' ($gitconfig -notmatch 'insteadOf = https://github\.com/\s*$')
 
+Write-Host "`n-- decision records --"
+# The index and the directory have to agree in both directions, or a new DR is
+# written and never discovered, or the index points at a file someone renamed.
+$drDir   = Join-Path $repo 'docs\decisions'
+$drIndex = Join-Path $drDir 'README.md'
+Check 'decisions index exists' (Test-Path $drIndex)
+if (Test-Path $drIndex) {
+    $indexText = Get-Content $drIndex -Raw
+    $onDisk = @(Get-ChildItem $drDir -Filter '*.md' | Where-Object { $_.Name -ne 'README.md' } | Select-Object -ExpandProperty Name)
+    $linked = @([regex]::Matches($indexText, '\]\((\d{4}-[a-z0-9-]+\.md)\)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+
+    Check 'at least one decision record' ($onDisk.Count -gt 0)
+    foreach ($f in $onDisk) { Check "indexed: $f" ($linked -contains $f) }
+    foreach ($l in $linked) { Check "index target exists: $l" ($onDisk -contains $l) }
+
+    # Cross-references between records must resolve too.
+    $dangling = @()
+    foreach ($f in $onDisk) {
+        $body = Get-Content (Join-Path $drDir $f) -Raw
+        foreach ($m in [regex]::Matches($body, '\]\((\d{4}-[a-z0-9-]+\.md)\)')) {
+            if ($onDisk -notcontains $m.Groups[1].Value) { $dangling += "$f -> $($m.Groups[1].Value)" }
+        }
+    }
+    Check 'no dangling cross-references' ($dangling.Count -eq 0)
+    if ($dangling) { $dangling | ForEach-Object { Write-Host "        $_" -ForegroundColor Red } }
+}
+
 Write-Host "`n-- manifest sanity --"
 $manifest = Get-Content (Join-Path $repo 'manifest\packages.json') -Raw | ConvertFrom-Json
 $dupes = $manifest.packages | Group-Object winget | Where-Object { $_.Count -gt 1 -and $_.Name }
