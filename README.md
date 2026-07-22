@@ -118,6 +118,9 @@ D:\projects\
 | `03-ssh-and-signing` | Generates an ed25519 key, starts ssh-agent, `gh auth login`, uploads the key to GitHub, configures SSH commit signing |
 | `04-os-tweaks` | Explorer/taskbar/theme settings, NTFS long paths, Developer Mode |
 | `05-dev-dirs` | Creates the dev folder layout under the projects root and clones the selected repo sets |
+| `06-obsidian` | Registers your vault with Obsidian so it opens on launch, then prints the manual Sync steps |
+
+Every run is recorded — see [Run log](#run-log) below.
 
 ## Configuring it
 
@@ -151,6 +154,11 @@ Verify an ID before committing it:
 winget show --id Rustlang.Rustup --exact
 ```
 
+Every `winget` ID in the manifest has been verified this way. The `brew` and
+`apt` columns have **not** — they're placeholders to give the macOS/Linux ports a
+starting shape, and each needs checking (`brew info`, `apt-cache show`) before
+those bootstraps rely on it.
+
 ### Adding a dotfile
 
 Put the file under `dotfiles/`, add an entry to `dotfiles/links.json`:
@@ -174,6 +182,36 @@ actually is, which matters when OneDrive has redirected it.
 
 Existing files are moved to `<file>.bak-<timestamp>` before being replaced.
 Nothing is destroyed.
+
+## Run log
+
+Every real run appends one JSON Lines record to `logs/runs.jsonl` — host, machine
+GUID, OS build, hardware, PowerShell version, repo commit, the flags you passed,
+duration, and what changed. Dry runs aren't recorded.
+
+```powershell
+.\tools\Show-RunLog.ps1              # one line per run, newest first
+.\tools\Show-RunLog.ps1 -ByMachine   # one row per machine, first/last seen
+.\tools\Show-RunLog.ps1 -Detail      # full records incl. what changed
+```
+
+JSONL rather than a JSON array so appending never rewrites earlier lines;
+`.gitattributes` marks the file `merge=union`, so two machines provisioned before
+either pushes merge without a conflict. Set `log.autoCommit` / `log.autoPush` in
+`config.json` to commit and push the entry automatically — both default to off,
+since pushing is a side effect you should opt into.
+
+## Obsidian
+
+`obsidian.vaultPath` in `config.json` registers your vault in
+`%APPDATA%\obsidian\obsidian.json`, so Obsidian opens it instead of showing the
+vault chooser. The existing file is backed up first.
+
+**Obsidian Sync can't be automated.** It needs an interactive account login and a
+remote-vault picker — there's no CLI, config file, or API for it, and the
+credentials aren't something this repo should hold. Step 06 does the part that
+can be scripted and then prints the four manual steps. Leave `vaultPath` null to
+skip the step entirely.
 
 ## Testing changes
 

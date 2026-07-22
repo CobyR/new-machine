@@ -168,6 +168,185 @@ function New-NMDirectory {
     New-Item -ItemType Directory -Path $Path -Force | Out-Null
 }
 
+# --- run log ------------------------------------------------------------------
+function Get-NMMachineFacts {
+    <#
+    .SYNOPSIS
+    Identifying details about this machine, for the run log.
+
+    .DESCRIPTION
+    machineId comes from the crypto MachineGuid, which survives a rename - so
+    two entries for the same physical box can be told apart from two boxes that
+    happen to share a hostname.
+    #>
+    $facts = [ordered]@{
+        host       = $env:COMPUTERNAME
+        user       = $env:USERNAME
+        machineId  = $null
+        domain     = $null
+        os         = $null
+        hardware   = $null
+        powershell = $PSVersionTable.PSVersion.ToString()
+        elevated   = (Test-NMAdmin)
+    }
+
+    try {
+        $crypto = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Cryptography' -ErrorAction Stop
+        if ($crypto.PSObject.Properties['MachineGuid']) { $facts.machineId = $crypto.MachineGuid }
+    } catch { }
+
+    # CIM can be slow or blocked; the log is still useful without it.
+    try {
+        $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        $cpu = @(Get-CimInstance Win32_Processor -ErrorAction Stop)[0]
+
+        $facts.domain = $cs.Domain
+        $facts.os = [ordered]@{
+            caption = $os.Caption
+            version = $os.Version
+            build   = $os.BuildNumber
+            arch    = $os.OSArchitecture
+        }
+        $facts.hardware = [ordered]@{
+            manufacturer = $cs.Manufacturer
+            model        = $cs.Model
+            cpu          = ($cpu.Name -replace '\s+', ' ').Trim()
+            cores        = $cpu.NumberOfLogicalProcessors
+            ramGB        = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
+        }
+    } catch {
+        $facts.os = [ordered]@{ caption = [Environment]::OSVersion.VersionString; version = [Environment]::OSVersion.Version.ToString() }
+    }
+
+    return $facts
+}
+
+function Get-NMRepoState {
+    # Which commit of this repo did the provisioning - so a machine set up six
+    # months ago can be traced to the config that was current then.
+    $state = [ordered]@{ commit = $null; branch = $null; dirty = $null }
+    if (-not (Test-NMCommand 'git')) { return $state }
+
+    $prev = Get-Location
+    try {
+        Set-Location $Global:NM.RepoRoot
+        $commit = Invoke-NMNative -Command 'git' -Arguments @('rev-parse', '--short', 'HEAD')
+        $branch = Invoke-NMNative -Command 'git' -Arguments @('rev-parse', '--abbrev-ref', 'HEAD')
+        $status = Invoke-NMNative -Command 'git' -Arguments @('status', '--porcelain')
+        if ($commit.Success) { $state.commit = $commit.Output.Trim() }
+        if ($branch.Success) { $state.branch = $branch.Output.Trim() }
+        if ($status.Success) { $state.dirty  = [bool]$status.Output.Trim() }
+    } catch {
+    } finally {
+        Set-Location $prev
+    }
+    return $state
+}
+
+function Write-NMRunLog {
+    <#
+    .SYNOPSIS
+    Appends one JSON Lines record of this run to logs/runs.jsonl.
+
+    .DESCRIPTION
+    JSONL rather than a single JSON array: appending never rewrites earlier
+    lines, so two machines provisioned in parallel produce a conflict git can
+    resolve on its own (.gitattributes marks the file merge=union).
+    #>
+    param(
+        [Parameter(Mandatory)]$Invocation,
+        [Parameter(Mandatory)]$Result
+    )
+
+    $config = Get-NMConfig
+    if (-not $config.PSObject.Properties['log'] -or -not $config.log.enabled) { return }
+
+    $logPath = Join-Path $Global:NM.RepoRoot ($config.log.path -replace '/', '\')
+
+    if ($Global:NM.DryRun) {
+        Write-Host "  ~ would: append a run entry to $($config.log.path)" -ForegroundColor DarkYellow
+        return
+    }
+
+    $facts = Get-NMMachineFacts
+    $now = Get-Date
+
+    $entry = [ordered]@{
+        timestamp  = $now.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+        localTime  = $now.ToString('yyyy-MM-dd HH:mm:ss zzz')
+        host       = $facts.host
+        machineId  = $facts.machineId
+        user       = $facts.user
+        domain     = $facts.domain
+        elevated   = $facts.elevated
+        powershell = $facts.powershell
+        os         = $facts.os
+        hardware   = $facts.hardware
+        repo       = Get-NMRepoState
+        invocation = $Invocation
+        result     = $Result
+    }
+
+    if ($config.log.recordChangedItems) { $entry.changed = @($Global:NM.Changed) }
+    if ($Global:NM.Failed.Count)        { $entry.failures = @($Global:NM.Failed) }
+
+    try {
+        $dir = Split-Path $logPath -Parent
+        if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+
+        $line = $entry | ConvertTo-Json -Depth 8 -Compress
+        # Append with explicit LF and no BOM so the file stays one-record-per-line
+        # and diffs cleanly across platforms.
+        $stream = [System.IO.File]::AppendText($logPath)
+        try { $stream.Write($line + "`n") } finally { $stream.Close() }
+
+        Write-NMOk "recorded this run in $($config.log.path)"
+    } catch {
+        Write-NMWarn "could not write run log: $($_.Exception.Message)"
+        return
+    }
+
+    if ($config.log.autoCommit) { Publish-NMRunLog -LogPath $logPath -Config $config }
+}
+
+function Publish-NMRunLog {
+    # Opt-in (log.autoCommit / log.autoPush). Commits ONLY the log file, so an
+    # unrelated work-in-progress in the repo is never swept into the commit.
+    param(
+        [Parameter(Mandatory)][string]$LogPath,
+        [Parameter(Mandatory)]$Config
+    )
+    if (-not (Test-NMCommand 'git')) { Write-NMWarn 'git not available; run log not committed'; return }
+
+    $prev = Get-Location
+    try {
+        Set-Location $Global:NM.RepoRoot
+        $relative = $Config.log.path
+
+        $add = Invoke-NMNative -Command 'git' -Arguments @('add', '--', $relative)
+        if (-not $add.Success) { Write-NMWarn "git add failed: $($add.Output.Trim())"; return }
+
+        $staged = Invoke-NMNative -Command 'git' -Arguments @('diff', '--cached', '--quiet', '--', $relative)
+        if ($staged.Success) { Write-NMSkip 'run log unchanged; nothing to commit'; return }
+
+        $message = "Record setup run on $env:COMPUTERNAME"
+        $commit = Invoke-NMNative -Command 'git' -Arguments @('commit', '-m', $message, '--only', '--', $relative)
+        if (-not $commit.Success) { Write-NMWarn "git commit failed: $($commit.Output.Trim())"; return }
+        Write-NMOk "committed run log ($message)"
+
+        if (-not $Config.log.autoPush) {
+            Write-NMInfo 'log.autoPush is off - push when you are ready'
+            return
+        }
+        $push = Invoke-NMNative -Command 'git' -Arguments @('push')
+        if ($push.Success) { Write-NMOk 'pushed run log' }
+        else { Write-NMWarn "git push failed: $($push.Output.Trim())" }
+    } finally {
+        Set-Location $prev
+    }
+}
+
 # --- projects root and repo sets ----------------------------------------------
 function Resolve-NMProjectsRoot {
     <#

@@ -148,6 +148,63 @@ foreach ($s in $sets) {
     }
 }
 
+Write-Host "`n-- run log --"
+# Point the library at a sandbox repo so nothing lands in the real logs/.
+$logRepo = Join-Path $sandbox 'logrepo'
+New-Item -ItemType Directory -Path $logRepo -Force | Out-Null
+Copy-Item (Join-Path $repo 'config.json') (Join-Path $logRepo 'config.json')
+
+$realRoot = $Global:NM.RepoRoot
+$realCfg  = $Global:NM.Config
+try {
+    $Global:NM.RepoRoot = $logRepo
+    $Global:NM.Config = $null                   # force reload from the sandbox copy
+    $sandboxCfg = Get-NMConfig
+    $sandboxCfg.log.autoCommit = $false         # never touch git from a test
+
+    $inv = [ordered]@{ dryRun = $false; steps = @('01-packages'); tags = @('core') }
+    $res = [ordered]@{ durationSeconds = 12; changed = 2; skipped = 3; failed = 0 }
+
+    Write-NMRunLog -Invocation $inv -Result $res
+    $logFile = Join-Path $logRepo 'logs\runs.jsonl'
+    Check 'log file created' (Test-Path $logFile)
+
+    $lines = @(Get-Content $logFile)
+    Check 'one line per run' ($lines.Count -eq 1)
+
+    $rec = $lines[0] | ConvertFrom-Json
+    Check 'records host'        ($rec.host -eq $env:COMPUTERNAME)
+    Check 'records user'        ($rec.user -eq $env:USERNAME)
+    Check 'records timestamp'   ($rec.timestamp -match '^\d{4}-\d{2}-\d{2}T')
+    Check 'records os caption'  ([bool]$rec.os.caption)
+    Check 'records powershell'  ([bool]$rec.powershell)
+    Check 'records invocation'  ($rec.invocation.steps -contains '01-packages')
+    Check 'records result'      ($rec.result.changed -eq 2 -and $rec.result.failed -eq 0)
+    Check 'records machineId'   ([bool]$rec.machineId)
+
+    # Appending must not rewrite earlier lines - that is the whole point of JSONL.
+    Write-NMRunLog -Invocation $inv -Result $res
+    $lines2 = @(Get-Content $logFile)
+    Check 'append adds a line'      ($lines2.Count -eq 2)
+    Check 'append preserves line 1' ($lines2[0] -eq $lines[0])
+
+    # Dry run must not record.
+    $Global:NM.DryRun = $true
+    Write-NMRunLog -Invocation $inv -Result $res
+    Check 'dry run writes nothing' ((Get-Content $logFile).Count -eq 2)
+    $Global:NM.DryRun = $false
+
+    # Disabling in config must be honoured.
+    $sandboxCfg.log.enabled = $false
+    Write-NMRunLog -Invocation $inv -Result $res
+    Check 'log.enabled=false skips' ((Get-Content $logFile).Count -eq 2)
+
+} finally {
+    $Global:NM.RepoRoot = $realRoot
+    $Global:NM.Config   = $realCfg
+    $Global:NM.DryRun   = $false
+}
+
 Write-Host "`n-- manifest sanity --"
 $manifest = Get-Content (Join-Path $repo 'manifest\packages.json') -Raw | ConvertFrom-Json
 $dupes = $manifest.packages | Group-Object winget | Where-Object { $_.Count -gt 1 -and $_.Name }

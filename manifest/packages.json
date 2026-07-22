@@ -1,10 +1,13 @@
 {
   "$comment": [
     "Platform-neutral package list. One entry per tool, with per-platform IDs.",
-    "Windows uses `winget`. `brew` / `apt` are pre-filled so macOS and Linux",
-    "bootstraps can consume this same file without a rewrite.",
     "A null ID means 'not applicable / installed another way on that platform'.",
-    "`check` is a command name used for a fast idempotency probe before shelling out to the package manager."
+    "`check` is a command name used for a fast idempotency probe before shelling out to the package manager.",
+    "",
+    "VERIFICATION STATUS: every `winget` ID here has been checked against the live",
+    "repository with `winget show --id <id> --exact`. The `brew` and `apt` columns",
+    "are UNVERIFIED placeholders to give the macOS/Linux ports a starting shape --",
+    "verify each one (`brew info <id>` / `apt-cache show <id>`) before relying on it."
   ],
 
   "packages": [
@@ -32,6 +35,7 @@
     { "name": "uv (Python manager)","tags": ["dev"],  "winget": "astral-sh.uv",                     "brew": "uv",               "apt": null,            "check": "uv" },
     { "name": "Docker Desktop",     "tags": ["dev"],  "winget": "Docker.DockerDesktop",             "brew": "docker",           "apt": null,            "check": "docker" },
     { "name": "Claude",             "tags": ["dev"],  "winget": "Anthropic.Claude",                 "brew": "claude",           "apt": null,            "check": null },
+    { "name": "Claude Code",        "tags": ["dev"],  "winget": "Anthropic.ClaudeCode",             "brew": "claude-code",      "apt": null,            "check": "claude" },
 
     { "name": "Google Chrome",      "tags": ["apps"], "winget": "Google.Chrome",                    "brew": "google-chrome",    "apt": null,            "check": null },
     { "name": "Firefox",            "tags": ["apps"], "winget": "Mozilla.Firefox",                  "brew": "firefox",          "apt": "firefox",       "check": null },
