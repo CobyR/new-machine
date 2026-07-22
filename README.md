@@ -197,9 +197,17 @@ duration, and what changed. Dry runs aren't recorded.
 
 JSONL rather than a JSON array so appending never rewrites earlier lines;
 `.gitattributes` marks the file `merge=union`, so two machines provisioned before
-either pushes merge without a conflict. Set `log.autoCommit` / `log.autoPush` in
-`config.json` to commit and push the entry automatically — both default to off,
-since pushing is a side effect you should opt into.
+either pushes merge without a conflict.
+
+**`log.autoCommit` is on by default** — every run commits its own entry, so the
+history is never left sitting uncommitted on a machine you set up once and walked
+away from. The commit is scoped to the log file alone (`git commit --only -- logs/runs.jsonl`),
+so unrelated work in progress is never swept in.
+
+`log.autoPush` is off by default. Turn it on to publish each entry as it happens;
+if another machine pushed first, the push is rebased onto it and retried once —
+`merge=union` means the log itself never conflicts. On an unresolvable rebase it
+aborts cleanly, leaves the commit in place, and tells you what to run.
 
 ## Obsidian
 
