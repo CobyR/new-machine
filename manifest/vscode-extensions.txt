@@ -1,0 +1,17 @@
+# One extension ID per line. Installed by 01-packages if `code` is on PATH.
+# Regenerate from a machine you like with:  code --list-extensions
+# Lines starting with # and blank lines are ignored.
+
+anthropic.claude-code
+eamodio.gitlens
+esbenp.prettier-vscode
+dbaeumer.vscode-eslint
+ms-python.python
+ms-python.vscode-pylance
+charliermarsh.ruff
+ms-azuretools.vscode-docker
+ms-vscode-remote.remote-wsl
+redhat.vscode-yaml
+tamasfe.even-better-toml
+usernamehw.errorlens
+streetsidesoftware.code-spell-checker

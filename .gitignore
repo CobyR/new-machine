@@ -1,0 +1,12 @@
+# Local overrides — never commit machine-specific secrets
+config.local.json
+*.local.json
+!config.example.json
+
+# Backups created when dotfiles are linked over existing files
+*.bak-*
+
+# OS noise
+Thumbs.db
+.DS_Store
+desktop.ini

@@ -1,0 +1,48 @@
+{
+  "$comment": [
+    "Platform-neutral package list. One entry per tool, with per-platform IDs.",
+    "Windows uses `winget`. `brew` / `apt` are pre-filled so macOS and Linux",
+    "bootstraps can consume this same file without a rewrite.",
+    "A null ID means 'not applicable / installed another way on that platform'.",
+    "`check` is a command name used for a fast idempotency probe before shelling out to the package manager."
+  ],
+
+  "packages": [
+    { "name": "Git",                "tags": ["core"], "winget": "Git.Git",                          "brew": "git",              "apt": "git",           "check": "git" },
+    { "name": "GitHub CLI",         "tags": ["core"], "winget": "GitHub.cli",                       "brew": "gh",               "apt": "gh",            "check": "gh" },
+    { "name": "PowerShell 7",       "tags": ["core"], "winget": "Microsoft.PowerShell",             "brew": "powershell",       "apt": "powershell",    "check": "pwsh" },
+    { "name": "Windows Terminal",   "tags": ["core"], "winget": "Microsoft.WindowsTerminal",        "brew": null,               "apt": null,            "check": "wt" },
+    { "name": "7-Zip",              "tags": ["core"], "winget": "7zip.7zip",                        "brew": "sevenzip",         "apt": "p7zip-full",    "check": null },
+    { "name": "gsudo",              "tags": ["core"], "winget": "gerardog.gsudo",                   "brew": null,               "apt": null,            "check": "gsudo" },
+
+    { "name": "ripgrep",            "tags": ["cli"],  "winget": "BurntSushi.ripgrep.MSVC",          "brew": "ripgrep",          "apt": "ripgrep",       "check": "rg" },
+    { "name": "fd",                 "tags": ["cli"],  "winget": "sharkdp.fd",                       "brew": "fd",               "apt": "fd-find",       "check": "fd" },
+    { "name": "bat",                "tags": ["cli"],  "winget": "sharkdp.bat",                      "brew": "bat",              "apt": "bat",           "check": "bat" },
+    { "name": "eza",                "tags": ["cli"],  "winget": "eza-community.eza",                "brew": "eza",              "apt": "eza",           "check": "eza" },
+    { "name": "fzf",                "tags": ["cli"],  "winget": "junegunn.fzf",                     "brew": "fzf",              "apt": "fzf",           "check": "fzf" },
+    { "name": "jq",                 "tags": ["cli"],  "winget": "jqlang.jq",                        "brew": "jq",               "apt": "jq",            "check": "jq" },
+    { "name": "zoxide",             "tags": ["cli"],  "winget": "ajeetdsouza.zoxide",               "brew": "zoxide",           "apt": "zoxide",        "check": "zoxide" },
+    { "name": "starship",           "tags": ["cli"],  "winget": "Starship.Starship",               "brew": "starship",         "apt": null,            "check": "starship" },
+    { "name": "delta",              "tags": ["cli"],  "winget": "dandavison.delta",                 "brew": "git-delta",        "apt": "git-delta",     "check": "delta" },
+    { "name": "lazygit",            "tags": ["cli"],  "winget": "JesseDuffield.lazygit",            "brew": "lazygit",          "apt": null,            "check": "lazygit" },
+    { "name": "Neovim",             "tags": ["cli"],  "winget": "Neovim.Neovim",                    "brew": "neovim",           "apt": "neovim",        "check": "nvim" },
+
+    { "name": "VS Code",            "tags": ["dev"],  "winget": "Microsoft.VisualStudioCode",       "brew": "visual-studio-code", "apt": "code",        "check": "code" },
+    { "name": "fnm (Node manager)", "tags": ["dev"],  "winget": "Schniz.fnm",                       "brew": "fnm",              "apt": null,            "check": "fnm" },
+    { "name": "uv (Python manager)","tags": ["dev"],  "winget": "astral-sh.uv",                     "brew": "uv",               "apt": null,            "check": "uv" },
+    { "name": "Docker Desktop",     "tags": ["dev"],  "winget": "Docker.DockerDesktop",             "brew": "docker",           "apt": null,            "check": "docker" },
+    { "name": "Claude",             "tags": ["dev"],  "winget": "Anthropic.Claude",                 "brew": "claude",           "apt": null,            "check": null },
+
+    { "name": "Google Chrome",      "tags": ["apps"], "winget": "Google.Chrome",                    "brew": "google-chrome",    "apt": null,            "check": null },
+    { "name": "Firefox",            "tags": ["apps"], "winget": "Mozilla.Firefox",                  "brew": "firefox",          "apt": "firefox",       "check": null },
+    { "name": "PowerToys",          "tags": ["apps"], "winget": "Microsoft.PowerToys",              "brew": null,               "apt": null,            "check": null },
+    { "name": "Everything",         "tags": ["apps"], "winget": "voidtools.Everything",             "brew": null,               "apt": null,            "check": null },
+    { "name": "Obsidian",           "tags": ["apps"], "winget": "Obsidian.Obsidian",                "brew": "obsidian",         "apt": null,            "check": null },
+    { "name": "VLC",                "tags": ["apps"], "winget": "VideoLAN.VLC",                     "brew": "vlc",              "apt": "vlc",           "check": null },
+
+    { "name": "Slack",              "tags": ["optional"], "winget": "SlackTechnologies.Slack",      "brew": "slack",            "apt": null,            "check": null },
+    { "name": "Discord",            "tags": ["optional"], "winget": "Discord.Discord",              "brew": "discord",          "apt": null,            "check": null },
+    { "name": "Spotify",            "tags": ["optional"], "winget": "Spotify.Spotify",              "brew": "spotify",          "apt": null,            "check": null },
+    { "name": "Postman",            "tags": ["optional"], "winget": "Postman.Postman",              "brew": "postman",          "apt": null,            "check": null }
+  ]
+}

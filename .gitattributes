@@ -1,0 +1,25 @@
+# Line endings are pinned here so a clone behaves the same regardless of the
+# machine's core.autocrlf, which differs between a fresh Git install and the
+# `input` this repo's own dotfiles/git/gitconfig sets after bootstrap.
+
+* text=auto
+
+# Windows-only scripts and configs: CRLF in the working tree.
+*.ps1       text eol=crlf
+*.psd1      text eol=crlf
+*.psm1      text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Shell scripts must be LF or they won't run once macOS/Linux land.
+*.sh        text eol=lf
+
+# Everything else stays LF.
+*.md        text eol=lf
+*.json      text eol=lf
+*.toml      text eol=lf
+*.txt       text eol=lf
+.gitignore      text eol=lf
+.gitattributes  text eol=lf
+gitconfig       text eol=lf
+gitignore_global text eol=lf

@@ -1,0 +1,55 @@
+{
+  "$comment": [
+    "Source paths are relative to the repo root. Targets use the tokens expanded",
+    "by Expand-NMPath ({HOME}, {DOCUMENTS}, {APPDATA}, {LOCALAPPDATA}, {REPO}).",
+    "`mode`: 'link' (symlink, falls back to copy) or 'copy' (for files an app rewrites in place).",
+    "macos/linux arrays are empty until those bootstraps exist — same schema, no rewrite needed."
+  ],
+
+  "windows": [
+    {
+      "source": "dotfiles/git/gitconfig",
+      "target": "{HOME}/.gitconfig",
+      "mode": "link"
+    },
+    {
+      "source": "dotfiles/git/gitignore_global",
+      "target": "{HOME}/.gitignore_global",
+      "mode": "link"
+    },
+    {
+      "source": "dotfiles/powershell/Microsoft.PowerShell_profile.ps1",
+      "target": "{DOCUMENTS}/PowerShell/Microsoft.PowerShell_profile.ps1",
+      "mode": "link"
+    },
+    {
+      "source": "dotfiles/powershell/Microsoft.PowerShell_profile.ps1",
+      "target": "{DOCUMENTS}/WindowsPowerShell/Microsoft.PowerShell_profile.ps1",
+      "mode": "link"
+    },
+    {
+      "source": "dotfiles/starship/starship.toml",
+      "target": "{HOME}/.config/starship.toml",
+      "mode": "link"
+    },
+    {
+      "source": "dotfiles/windows-terminal/settings.json",
+      "target": "{LOCALAPPDATA}/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json",
+      "mode": "copy",
+      "note": "Terminal rewrites this file on change; copy so edits don't dirty the repo. Run 02-dotfiles -Export to pull changes back."
+    },
+    {
+      "source": "dotfiles/vscode/settings.json",
+      "target": "{APPDATA}/Code/User/settings.json",
+      "mode": "copy"
+    },
+    {
+      "source": "dotfiles/vscode/keybindings.json",
+      "target": "{APPDATA}/Code/User/keybindings.json",
+      "mode": "copy"
+    }
+  ],
+
+  "macos": [],
+  "linux": []
+}
