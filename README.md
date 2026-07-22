@@ -226,10 +226,15 @@ history is never left sitting uncommitted on a machine you set up once and walke
 away from. The commit is scoped to the log file alone (`git commit --only -- logs/runs.jsonl`),
 so unrelated work in progress is never swept in.
 
-`log.autoPush` is off by default. Turn it on to publish each entry as it happens;
-if another machine pushed first, the push is rebased onto it and retried once —
-`merge=union` means the log itself never conflicts. On an unresolvable rebase it
-aborts cleanly, leaves the commit in place, and tells you what to run.
+**`log.autoPush` is on too**, so each entry is published as it happens and the
+history is visible from every machine rather than sitting in local commits. If
+another machine pushed first, the push is rebased onto it and retried once —
+`merge=union` means the log itself never conflicts, so both machines' lines
+survive. On an unresolvable rebase it aborts cleanly, leaves the commit in place,
+and prints the manual fix.
+
+A run on a machine with no network, or no push access, warns and moves on — the
+entry is still committed locally and goes up with the next successful push.
 
 ## Obsidian
 
