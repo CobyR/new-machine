@@ -57,13 +57,26 @@ function Format-Outcome {
 if ($ByMachine) {
     Write-Host ''
     Write-Host 'Machines provisioned from this repo' -ForegroundColor Cyan
+    # Group by machineId, not hostname: renaming a machine must not make it look
+    # like a second one. Falls back to the hostname when machineId is absent
+    # (CIM/registry unavailable on that run).
     $entries |
-        Group-Object host |
+        Group-Object { if ($_.machineId) { $_.machineId } else { "host:$($_.host)" } } |
         ForEach-Object {
             $runs = @($_.Group | Sort-Object { [datetime]$_.timestamp } -Descending)
             $latest = $runs[0]
+
+            # Surface renames rather than hiding them - the old name is how you
+            # remember the machine.
+            $names = @($runs | Select-Object -ExpandProperty host -Unique)
+            $shown = $latest.host
+            if ($names.Count -gt 1) {
+                $former = @($names | Where-Object { $_ -ne $latest.host })
+                $shown = "$($latest.host) (was $($former -join ', '))"
+            }
+
             [pscustomobject]@{
-                Host     = $_.Name
+                Host     = $shown
                 Runs     = $runs.Count
                 FirstRun = ([datetime]$runs[-1].timestamp).ToString('yyyy-MM-dd')
                 LastRun  = ([datetime]$latest.timestamp).ToString('yyyy-MM-dd')
