@@ -7,6 +7,20 @@
 [init]
 	defaultBranch = main
 
+# Rewrite HTTPS to SSH for repos we own, so "everything is on SSH" stays true
+# without manual cleanup. HTTPS URLs keep arriving whether you like it or not:
+# GitHub's Code button defaults to HTTPS, submodules embed whatever the author
+# used, and `go get` / `pip install git+https://...` emit HTTPS.
+#
+# Scoped to our own owners on purpose. A blanket rule on https://github.com/
+# would also rewrite third-party public repos, which then need a loaded SSH key
+# to clone -- they'd fail on a fresh machine before step 03, where plain HTTPS
+# would have worked anonymously.
+[url "git@github.com:CobyR/"]
+	insteadOf = https://github.com/CobyR/
+[url "git@github.com:SayWhatTech/"]
+	insteadOf = https://github.com/SayWhatTech/
+
 [core]
 	autocrlf = input
 	longpaths = true

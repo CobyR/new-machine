@@ -205,6 +205,26 @@ try {
     $Global:NM.DryRun   = $false
 }
 
+Write-Host "`n-- SSH url rewrite covers every owner we clone from --"
+# dotfiles/git/gitconfig rewrites HTTPS -> SSH per owner. Adding an org to
+# repoSets without adding its rule would silently leave that org on HTTPS.
+$gitconfig = Get-Content (Join-Path $repo 'dotfiles\git\gitconfig') -Raw
+$owners = [System.Collections.Generic.HashSet[string]]::new()
+foreach ($s in $cfg.dev.repoSets.PSObject.Properties.Name) {
+    $set = $cfg.dev.repoSets.$s
+    if ($set.PSObject.Properties['owner'] -and $set.owner) { $owners.Add($set.owner) | Out-Null }
+    if ($set.PSObject.Properties['repos'] -and $set.repos) {
+        foreach ($r in $set.repos) {
+            if ($r -notmatch '^(git@|https://|ssh://)' -and $r -match '^([^/]+)/') { $owners.Add($Matches[1]) | Out-Null }
+        }
+    }
+}
+Check 'found owners to check' ($owners.Count -gt 0)
+foreach ($o in $owners) {
+    Check "insteadOf rule for '$o'" ($gitconfig -match [regex]::Escape("insteadOf = https://github.com/$o/"))
+}
+Check 'no blanket github.com rewrite' ($gitconfig -notmatch 'insteadOf = https://github\.com/\s*$')
+
 Write-Host "`n-- manifest sanity --"
 $manifest = Get-Content (Join-Path $repo 'manifest\packages.json') -Raw | ConvertFrom-Json
 $dupes = $manifest.packages | Group-Object winget | Where-Object { $_.Count -gt 1 -and $_.Name }
