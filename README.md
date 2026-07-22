@@ -118,7 +118,7 @@ D:\projects\
 | `03-ssh-and-signing` | Generates an ed25519 key, starts ssh-agent, `gh auth login`, uploads the key to GitHub, configures SSH commit signing |
 | `04-os-tweaks` | Explorer/taskbar/theme settings, NTFS long paths, Developer Mode |
 | `05-dev-dirs` | Creates the dev folder layout under the projects root and clones the selected repo sets |
-| `06-obsidian` | Registers your vault with Obsidian so it opens on launch, then prints the manual Sync steps |
+| `06-obsidian` | Prints the manual Obsidian Sync steps after install (touches no Obsidian config) |
 
 Every run is recorded — see [Run log](#run-log) below.
 
@@ -203,15 +203,15 @@ since pushing is a side effect you should opt into.
 
 ## Obsidian
 
-`obsidian.vaultPath` in `config.json` registers your vault in
-`%APPDATA%\obsidian\obsidian.json`, so Obsidian opens it instead of showing the
-vault chooser. The existing file is backed up first.
+Installed by step 01; **its config is deliberately left alone**. Obsidian shows
+its normal vault chooser on first launch, which is what you want when the vault
+comes from Sync — sign in, connect Sync, and pull the vault down from the remote
+rather than pointing Obsidian at a local folder that may not exist yet.
 
-**Obsidian Sync can't be automated.** It needs an interactive account login and a
-remote-vault picker — there's no CLI, config file, or API for it, and the
-credentials aren't something this repo should hold. Step 06 does the part that
-can be scripted and then prints the four manual steps. Leave `vaultPath` null to
-skip the step entirely.
+Sync can't be automated regardless: it needs an interactive account login and a
+remote-vault picker, with no CLI, config file, or API, and the credentials aren't
+something this repo should hold. Step 06 just prints the remaining manual steps
+after install. Set `obsidian.remindAboutSync` to `false` to silence it.
 
 ## Testing changes
 

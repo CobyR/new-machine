@@ -64,14 +64,12 @@
 
   "obsidian": {
     "$comment": [
-      "vaultPath registers your vault so Obsidian opens it on first launch.",
-      "Obsidian Sync itself cannot be automated - it needs an interactive",
-      "account login and a remote-vault picker. Step 06 prints those steps.",
-      "Leave vaultPath null to skip the step entirely."
+      "Obsidian's own vault chooser is left alone on purpose - when the vault",
+      "comes from Sync you want that prompt, so you can sign in and pull the",
+      "vault down rather than pointing at a local folder. Step 06 only prints",
+      "a reminder of the manual steps; set this false to silence it."
     ],
-    "vaultPath": null,
-    "createIfMissing": false,
-    "openAfterSetup": false
+    "remindAboutSync": true
   },
 
   "log": {
