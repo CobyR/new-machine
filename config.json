@@ -75,13 +75,16 @@
   "log": {
     "$comment": [
       "One JSON Lines record per run, appended to path. Dry runs are not",
-      "recorded. autoCommit commits only the log file; autoPush additionally",
-      "pushes it, which is what makes the history visible across machines."
+      "recorded. autoCommit commits the log file (and only that file) after",
+      "every run, so the history is never left sitting uncommitted. autoPush",
+      "additionally pushes it, which is what makes the history visible from",
+      "other machines; it rebases and retries once if another machine got",
+      "there first."
     ],
     "enabled": true,
     "path": "logs/runs.jsonl",
     "recordChangedItems": true,
-    "autoCommit": false,
+    "autoCommit": true,
     "autoPush": false
   },
 

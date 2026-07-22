@@ -339,9 +339,34 @@ function Publish-NMRunLog {
             Write-NMInfo 'log.autoPush is off - push when you are ready'
             return
         }
+
         $push = Invoke-NMNative -Command 'git' -Arguments @('push')
-        if ($push.Success) { Write-NMOk 'pushed run log' }
-        else { Write-NMWarn "git push failed: $($push.Output.Trim())" }
+        if ($push.Success) { Write-NMOk 'pushed run log'; return }
+
+        # A second machine provisioned since our last fetch is the expected
+        # case, not an error: its log entry is already on the remote, so our
+        # push is a non-fast-forward. Rebase onto it and retry once.
+        # .gitattributes marks runs.jsonl merge=union, so the log itself never
+        # conflicts - both machines' lines survive.
+        if ($push.Output -notmatch 'non-fast-forward|fetch first|rejected') {
+            Write-NMWarn "git push failed: $($push.Output.Trim())"
+            return
+        }
+
+        Write-NMInfo 'remote has moved on - rebasing the log onto it'
+        $pull = Invoke-NMNative -Command 'git' -Arguments @('pull', '--rebase')
+        if (-not $pull.Success) {
+            # Leave the working tree exactly as we found it rather than
+            # stranding the user mid-rebase.
+            Invoke-NMNative -Command 'git' -Arguments @('rebase', '--abort') | Out-Null
+            Write-NMWarn "could not rebase onto the remote; run log committed but not pushed"
+            Write-NMInfo  "resolve by hand, then: git pull --rebase && git push"
+            return
+        }
+
+        $push = Invoke-NMNative -Command 'git' -Arguments @('push')
+        if ($push.Success) { Write-NMOk 'pushed run log (after rebase)' }
+        else { Write-NMWarn "git push still failed after rebase: $($push.Output.Trim())" }
     } finally {
         Set-Location $prev
     }
