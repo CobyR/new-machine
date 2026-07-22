@@ -275,6 +275,34 @@ $globalWrites = @($stepFiles | Where-Object {
 Check 'no step calls git config --global' ($globalWrites.Count -eq 0)
 if ($globalWrites) { $globalWrites | ForEach-Object { Write-Host "        $($_.Name)" -ForegroundColor Red } }
 
+Write-Host "`n-- README stays in step with the repo --"
+# The overview quotes a package count and lists the steps. Both drift silently
+# as packages and steps are added, and a stale overview is worse than none.
+$readme = Get-Content (Join-Path $repo 'README.md') -Raw
+$pkgManifest = Get-Content (Join-Path $repo 'manifest\packages.json') -Raw | ConvertFrom-Json
+
+$defaultCount = @($pkgManifest.packages | Where-Object {
+    $_.winget -and ($_.tags | Where-Object { $cfg.packages.tags -contains $_ })
+}).Count
+$claimed = [regex]::Match($readme, '\|\s*`01-packages`\s*\|\s*(\d+)\s+tools')
+Check 'README states a package count' $claimed.Success
+if ($claimed.Success) {
+    Check "package count matches manifest ($defaultCount)" ([int]$claimed.Groups[1].Value -eq $defaultCount)
+}
+
+foreach ($s in (Get-ChildItem (Join-Path $repo 'platforms\windows\steps') -Filter '*.ps1')) {
+    Check "README lists $($s.BaseName)" ($readme -match [regex]::Escape($s.BaseName))
+}
+
+# In-README anchors must resolve, or the overview links to nothing.
+$headings = @([regex]::Matches($readme, '(?m)^#{1,4}\s+(.+?)\s*$') | ForEach-Object {
+    ($_.Groups[1].Value.ToLower() -replace '[^\w\s-]', '' -replace '\s+', '-')
+})
+$deadAnchors = @([regex]::Matches($readme, '\]\(#([a-z0-9-]+)\)') |
+    ForEach-Object { $_.Groups[1].Value } | Where-Object { $headings -notcontains $_ })
+Check 'no dead in-README anchors' ($deadAnchors.Count -eq 0)
+if ($deadAnchors) { $deadAnchors | ForEach-Object { Write-Host "        #$_" -ForegroundColor Red } }
+
 Write-Host "`n-- decision records --"
 # The index and the directory have to agree in both directions, or a new DR is
 # written and never discovered, or the index points at a file someone renamed.

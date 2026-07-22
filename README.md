@@ -1,9 +1,44 @@
 # new-machine
 
-Turns a fresh Windows install into my working machine. Idempotent — running it on
-an already-configured machine changes nothing and reports all skips.
+Turns a fresh Windows install into my working machine — and keeps the ones I
+already have in line. One command, repeatable, safe to run again.
 
-Why it's built this way: [docs/decisions](docs/decisions/).
+## What it does
+
+`bootstrap.ps1` reads `config.json` and runs six numbered steps in order. What
+you end up with:
+
+| Step | Result | Needs admin |
+|---|---|---|
+| `01-packages` | 31 tools and applications installed via winget, plus VS Code extensions | some installers |
+| `02-dotfiles` | git config, PowerShell profile, starship, Windows Terminal and VS Code settings, symlinked out of this repo | no (wants Developer Mode) |
+| `03-ssh-and-signing` | ed25519 key generated, agent running, key registered with GitHub, commits signed and showing Verified | ssh-agent service only |
+| `04-os-tweaks` | Explorer, taskbar and theme tweaks; NTFS long paths; Developer Mode | long paths + Developer Mode |
+| `05-dev-dirs` | Folder layout under `D:\projects`, repos cloned by named set | no |
+| `06-obsidian` | Prints the manual Sync steps — deliberately changes nothing | no |
+
+Four properties do most of the work:
+
+- **Idempotent.** Every step checks before it acts. A second run on a configured
+  machine changes nothing and reports all skips, so you can re-run it any time
+  without thinking about what state you're in.
+- **Inspectable.** `-DryRun` narrates the entire plan — every package, every
+  file, every registry write — without touching the machine.
+- **Selective.** `-Only`, `-Skip`, `-Tags` and `-Repos` let you run one step, a
+  minimal package set, or a work machine's repos, from the same config.
+- **Self-recording.** Each run appends a record to `logs/runs.jsonl` — host,
+  hardware, what changed — then commits and pushes it. The repo accumulates a
+  history of every machine it has set up.
+
+Everything that varies by machine lives in `config.json`; everything else is
+data (`manifest/packages.json`, `dotfiles/links.json`) rather than code. Adding
+a package or a dotfile is a row in a JSON file, not a change to a script.
+
+It's Windows-only today, but the platform-neutral parts sit at the repo root so
+macOS and Linux can be added without restructuring.
+
+**Why it's built this way, and what else was considered:**
+[docs/decisions](docs/decisions/).
 
 ---
 
@@ -129,19 +164,6 @@ Steps run directly too, with the same parameters:
 
 Exit code is `0` when nothing failed, `1` otherwise. Output symbols: `+` changed,
 `=` unchanged, `~` would change (dry run), `!` warning, `x` failed.
-
----
-
-## What each step does
-
-| Step | Does | Needs admin |
-|------|------|-------------|
-| `01-packages` | winget-installs everything in `manifest/packages.json` matching your tags, then VS Code extensions from `manifest/vscode-extensions.txt` | some installers |
-| `02-dotfiles` | Links (or copies) everything in `dotfiles/links.json`; writes git identity to `~/.gitconfig.local` | no (but wants Developer Mode) |
-| `03-ssh-and-signing` | ed25519 key, ssh-agent, `gh auth login`, uploads auth + signing keys, configures SSH commit signing | ssh-agent service only |
-| `04-os-tweaks` | Explorer/taskbar/theme settings, NTFS long paths, Developer Mode | long paths + Developer Mode |
-| `05-dev-dirs` | Creates the folder layout under the projects root, clones the selected repo sets | no |
-| `06-obsidian` | Prints the manual Obsidian Sync steps. Changes nothing | no |
 
 ---
 
